@@ -1,6 +1,4 @@
 import { useState } from "react";
-import Popup from "reactjs-popup";
-import "reactjs-popup/dist/index.css";
 
 const prevTasks = [
   { title: "task1", check: true, time: "03:03", date: "1/31/2024", id: "01" },
@@ -10,8 +8,21 @@ const prevTasks = [
 export default function TODO() {
   const [Todo, setTodo] = useState(prevTasks);
   const [showModule, setShowModule] = useState(false);
+  const [updateTask, setUpdateTask] = useState(null);
+  const [showFilter, setShowFilter] = useState("all");
+  const [filteredTasks, setFilteredTasks] = useState(Todo);
   function handelAddTodo(newTodo) {
-    setTodo((Tasks) => [...Tasks, newTodo]);
+    if (updateTask) {
+      setTodo(
+        Todo.map((task) =>
+          task.id === newTodo.id ? { ...task, ...newTodo } : task
+        )
+      );
+      setUpdateTask(null); // Reset updateTask after updating
+    } else {
+      setTodo((prevTodo) => [...prevTodo, newTodo]);
+    }
+    setShowModule(false);
   }
   function handelDeleteTodo(id) {
     setTodo(Todo.filter((Tasks) => Tasks.id !== id));
@@ -23,58 +34,78 @@ export default function TODO() {
       )
     );
   }
-  function handelEdit() {
-    // setShowEdit(!showEdit);
-    // showEdit && console.log("out");
+  function handelModule() {
+    setShowModule(!showModule);
+  }
+  function handelEdit(id) {
+    const taskToUpdate = Todo.find((task) => task.id === id);
+    setShowModule(!showModule);
+    setUpdateTask(taskToUpdate);
+  }
+  function handelFilter(e) {
+    const filterValue = e.target.value;
+    setShowFilter(filterValue);
+    let filteredTasks = [];
+
+    if (filterValue === "complete") {
+      filteredTasks = Todo.filter((task) => task.check === true);
+    } else if (filterValue === "incomplete") {
+      filteredTasks = Todo.filter((task) => task.check === false);
+    } else {
+      filteredTasks = Todo; // Show all tasks if "all" is selected
+    }
+
+    setFilteredTasks(filteredTasks);
   }
 
   return (
     <div className="w-1/2 p-4 mx-auto my-5 text-center border">
       <h1 className="text-gray-600 text-4xl font-bold">TODO LIST</h1>
       <div className="flex justify-between p-5">
-        {/* {addToggle && <NewTask onSubmit={handelAddTodo} />} */}
-        <Popup
-          trigger={
-            <button className="bg-violet-500 px-5 py-1 rounded-lg text-white">
-              Add Task
-            </button>
-          }
+        <button
+          className="bg-violet-500 px-5 py-1 rounded-lg text-white"
+          onClick={() => setShowModule(true)}
         >
-          <NewTask onSubmit={handelAddTodo} />
-        </Popup>
+          Add Task
+        </button>
 
-        <select className="bg-gray-200 rounded-lg px-5">
-          <option>All</option>
-          <option>complete</option>
-          <option>incomplete</option>
+        <select
+          className="bg-gray-200 rounded-lg px-5"
+          value={showFilter}
+          onChange={handelFilter}
+        >
+          <option value="all">All</option>
+          <option value="complete">complete</option>
+          <option value="incomplete">incomplete</option>
         </select>
       </div>
       <TaskList
+        filteredTasks={filteredTasks}
         Todo={Todo}
         onDelete={handelDeleteTodo}
         onToggle={handelToggle}
         onEdit={handelEdit}
       />
+      {showModule && (
+        <ModalComp
+          onSubmit={handelAddTodo}
+          onCancel={handelModule}
+          onUpdate={updateTask}
+        />
+      )}
     </div>
   );
 }
-function ModalComp({ open }) {
+function ModalComp({ onSubmit, onCancel, onUpdate }) {
   return (
-    <div
-      className={`flex justify-center items-center transition-colors${
-        open ? "visible bg-black/20" : "invisible"
-      }`}
-    >
-      {/* <div
-        className={`bg-white rounded-lg shadow p-6 transition-all max-w-md${
-          open ? "scale-100 opacity-100" : "scale-110 opacity-0"
-        }`}
-      ></div> */}
-      <NewTask />
+    <div className="fixed inset-0 bg-opacity-30 flex justify-center items-center bg-black">
+      <div>
+        <NewTask onSubmit={onSubmit} onCancel={onCancel} onUpdate={onUpdate} />
+      </div>
     </div>
   );
 }
-function TaskList({ Todo, onDelete, onToggle, onEdit }) {
+function TaskList({ Todo, onDelete, onToggle, onEdit, filteredTasks }) {
   return (
     <div className="bg-violet-100  flex flex-col space-y-4 py-3 rounded-lg">
       {Todo.map((task) => (
@@ -97,7 +128,7 @@ function Task({ task, onDelete, onToggle, onEdit }) {
           <input
             type="checkbox"
             className={`size-6  rounded border-gray-300  focus:ring-indigo-600 checked:text-indigo-600`}
-            checked={Boolean(task.check)}
+            checked={task.check}
             onChange={() => onToggle(task.id)}
           />
         </div>
@@ -109,7 +140,7 @@ function Task({ task, onDelete, onToggle, onEdit }) {
           >
             {task.title}
           </label>
-          <p className={`text-sm ${task.check ? "line-through" : ""}`}>
+          <p className={`flex text-sm ${task.check ? "line-through" : ""}`}>
             {task.time},{task.date}
           </p>
         </div>
@@ -121,14 +152,18 @@ function Task({ task, onDelete, onToggle, onEdit }) {
         >
           🗑️
         </button>
-        <button className="bg-slate-200 p-2 rounded-lg" onClick={onEdit}>
+        <button
+          className="bg-slate-200 p-2 rounded-lg"
+          onClick={() => onEdit(task.id)}
+        >
           ✍️
         </button>
       </div>
     </div>
   );
 }
-function NewTask({ onSubmit }) {
+
+function NewTask({ onSubmit, onCancel, onUpdate }) {
   const time = new Date();
   const currTime = time.toLocaleTimeString([], {
     hour: "2-digit",
@@ -136,65 +171,70 @@ function NewTask({ onSubmit }) {
     hour12: true,
   });
   const currDate = time.toLocaleDateString();
-  const [newTitle, setNewTitle] = useState("");
-  const [check, setCheck] = useState(false);
+  const [newTitle, setNewTitle] = useState(onUpdate ? onUpdate.title : "");
+  const [check, setCheck] = useState(onUpdate ? onUpdate.check : false);
   function handleSubmit(e) {
     e.preventDefault();
     if (!newTitle) return;
-    const id = crypto.randomUUID();
-    const newTodo = {
+    const id = onUpdate ? onUpdate.id : crypto.randomUUID();
+    const updatedTodo = {
       id,
       title: newTitle,
-      check: check,
+      check: check === "true",
       date: currDate,
       time: currTime,
     };
-    console.log(newTodo);
-    onSubmit(newTodo);
     setNewTitle("");
-    setCheck(false);
+    setCheck("false");
+    onSubmit(updatedTodo);
+    console.log(onUpdate);
   }
-
   return (
-    <div className="flex items-center justify-center">
+    <div>
       <form
-        className="p-5  mx-auto my-auto rounded-lg overflow-hidden shadow-lg flex flex-col bg-gray-200 relative"
+        className="p-10 rounded-lg shadow-lg flex flex-col bg-gray-200 relative"
         onSubmit={handleSubmit}
       >
-        <button className="absolute top-0 right-0 bg-red-700 text-white w-7 h-7 m-2 rounded-full">
+        <button
+          className="absolute top-0 right-0 bg-red-700 text-white w-7 h-7 m-2 rounded-full"
+          onClick={onCancel}
+        >
           X
         </button>
 
-        <h1 className="font-bold text-xl mb-2 text-gray-700 pb-3">Add TODO</h1>
+        <h1 className="font-bold text-xl mb-2 text-gray-700 pb-3">
+          {" "}
+          {onUpdate ? "Update TODO" : "Add TODO"}
+        </h1>
         <label className="text-gray-700">
-          Title
+          Title{"  "}
           <input
             type="text"
-            className="rounded-sm h-10"
+            className="rounded-sm h-10 indent-3"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
           />
         </label>
 
-        <label className="text-gray-700">
-          Status
+        <label className="text-gray-700 p-4">
+          Status{"  "}
           <select
-            className="rounded-sm h-10"
+            className="rounded-sm h-10 w-48 indent-2"
             value={check}
             onChange={(e) => setCheck(e.target.value)}
           >
-            <option value={false}>incomplete</option>
-            <option value={true}>Complete</option>
+            <option value="false">No done Yet</option>
+            <option value="true">Finished</option>
           </select>
         </label>
-        <div className="flex justify-around p-4">
-          <button
-            className="text-white bg-violet-600 w-28 rounded-lg py-2 "
-            // onClick={() => handleSubmit(newTodo)}
-          >
-            Add Task
+        <div className="flex space-x-5 p-4">
+          <button className="text-white bg-violet-600 w-28 rounded-lg py-2 ">
+            {onUpdate ? "Update Task" : "Add Task"}
           </button>
-          <button className="text-gray-700 bg-gray-300 w-28 rounded-lg py-2">
+          <button
+            className="text-gray-700 bg-gray-300 w-28 rounded-lg "
+            onClick={onCancel}
+          >
             Cancel
           </button>
         </div>
