@@ -10,7 +10,15 @@ export default function TODO() {
   const [showModule, setShowModule] = useState(false);
   const [updateTask, setUpdateTask] = useState(null);
   const [showFilter, setShowFilter] = useState("all");
-  const [filteredTasks, setFilteredTasks] = useState(Todo);
+  let filteredTasks = Todo.filter((task) => {
+    if (showFilter === "complete") {
+      return task.check === true;
+    } else if (showFilter === "incomplete") {
+      return task.check === false;
+    } else {
+      return task; // Show all tasks if "all" is selected
+    }
+  });
   function handelAddTodo(newTodo) {
     if (updateTask) {
       setTodo(
@@ -45,17 +53,6 @@ export default function TODO() {
   function handelFilter(e) {
     const filterValue = e.target.value;
     setShowFilter(filterValue);
-    let filteredTasks = [];
-
-    if (filterValue === "complete") {
-      filteredTasks = Todo.filter((task) => task.check === true);
-    } else if (filterValue === "incomplete") {
-      filteredTasks = Todo.filter((task) => task.check === false);
-    } else {
-      filteredTasks = Todo; // Show all tasks if "all" is selected
-    }
-
-    setFilteredTasks(filteredTasks);
   }
 
   return (
@@ -80,8 +77,7 @@ export default function TODO() {
         </select>
       </div>
       <TaskList
-        filteredTasks={filteredTasks}
-        Todo={Todo}
+        Todo={filteredTasks}
         onDelete={handelDeleteTodo}
         onToggle={handelToggle}
         onEdit={handelEdit}
@@ -105,7 +101,7 @@ function ModalComp({ onSubmit, onCancel, onUpdate }) {
     </div>
   );
 }
-function TaskList({ Todo, onDelete, onToggle, onEdit, filteredTasks }) {
+function TaskList({ Todo, onDelete, onToggle, onEdit }) {
   return (
     <div className="bg-violet-100  flex flex-col space-y-4 py-3 rounded-lg">
       {Todo.map((task) => (
@@ -123,7 +119,7 @@ function TaskList({ Todo, onDelete, onToggle, onEdit, filteredTasks }) {
 function Task({ task, onDelete, onToggle, onEdit }) {
   return (
     <div className="w-11/12 mx-auto bg-white flex justify-between center items-center rounded-sm">
-      <div className="flex ">
+      <div className="flex spce">
         <div className="flex items-center p-3 ">
           <input
             type="checkbox"
@@ -132,7 +128,7 @@ function Task({ task, onDelete, onToggle, onEdit }) {
             onChange={() => onToggle(task.id)}
           />
         </div>
-        <div className="my-2">
+        <div className="">
           <label
             className={`flex text-sm font-medium ${
               task.check ? "line-through" : ""
